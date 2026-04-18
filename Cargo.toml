@@ -1,5 +1,5 @@
 [package]
-name = "fluentui-icons"
+name = "iced-fluent-icons"
 version = "1.0.0"
 edition = "2024"
 authors = ["Febri <root.febri@gmail.com>"]
