@@ -7,7 +7,13 @@ description = "Procedural macro crate that generates Fluent UI icon stubs and re
 license = "MIT OR Apache-2.0"
 keywords = ["fluentui", "icons", "proc-macro", "svg", "iced-icons"]
 categories = ["development-tools::procedural-macro-helpers"]
-include = ["icons"]
+include = [
+  "src/**/*",
+  "icons/**/*",
+  "Cargo.toml",
+  "LICENSE*",
+  "README*",
+]
 
 [lib]
 proc-macro = true
