@@ -1,4 +1,4 @@
-//! # fluentui-icons
+//! # iced-fluent-icons
 //!
 //! Proc-macro crate for embedding Fluent UI SVG icons into an [`iced`](https://iced.rs)
 //! application with minimal LSP overhead.
@@ -7,21 +7,21 @@
 //!
 //! The crate is split into two complementary macros:
 //!
-//! ### 1. [`declare!`] — stub generation (LSP-only, compile-time lean)
+//! ### 1. [`declare!`] — stub generation (LSP-friendly, compile-time lean)
 //!
 //! Call this once in your icons module:
 //!
 //! ```ignore
 //! // src/icons/fluent.rs
-//! fluentui_icons::declare!();
+//! iced_fluent_icons::declare!();
 //! ```
 //!
 //! For each `Foo.svg` in the `icons/` directory this emits roughly:
 //!
 //! ```ignore
-//! /// ![Foo](file:///…/icons/Foo.svg)   ← rendered in IDE hover / sig-help
+//! /// ![Foo](https://raw.githubusercontent.com/…/icons/Foo.svg)
 //! ///
-//! /// `Foo.svg` — annotate the caller with `#[fluentui_icons::inventory]`.
+//! /// `Foo.svg` — annotate the caller with `#[iced_fluent_icons::inventory]`.
 //! pub fn foo() -> ::iced::widget::Svg<'static> {
 //!     panic!("icon stub …")
 //! }
@@ -39,7 +39,7 @@
 //! Annotate every function (or `impl` block, or `mod`) that calls icon stubs:
 //!
 //! ```ignore
-//! #[fluentui_icons::inventory]
+//! #[iced_fluent_icons::inventory]
 //! fn toolbar() -> iced::Element<'_, Message> {
 //!     let close = icons::fluent::dismiss_circle_color();
 //!     // ↑ rewritten at compile time to:
@@ -51,19 +51,49 @@
 //! }
 //! ```
 //!
-//! [`inventory`] walks the entire item's AST using [`syn::visit_mut`] and replaces every
-//! zero-argument call expression whose **last path segment** is a known icon function name.
-//! Icon calls inside widget macros (`w::column![]`, `w::row![]`, `w::stack![]`, etc.)
-//! are also rewritten — the macro body is parsed as comma-separated expressions and
-//! each one is visited recursively.
-//! This means all of the following are handled identically:
+//! #### Custom icon size
+//!
+//! Pass `size`, `width`, or `height` arguments to override the default 24 × 24 px:
 //!
 //! ```ignore
-//! dismiss_circle_color()                        // after `use icons::fluent::*`
+//! #[iced_fluent_icons::inventory(size = 32)]           // 32 × 32
+//! #[iced_fluent_icons::inventory(width = 20, height = 24)]  // custom
+//! ```
+//!
+//! [`inventory`] walks the entire item's AST using [`syn::visit_mut`] and replaces every
+//! zero-argument call expression whose **last path segment** is a known icon function name.
+//! Icon calls inside widget macros (`column![]`, `row![]`, `stack![]`, etc.) are also
+//! rewritten — the macro body is parsed as comma-separated expressions and each one is
+//! visited recursively.
+//!
+//! All of the following call forms are handled identically:
+//!
+//! ```ignore
+//! dismiss_circle_color()                          // after `use icons::fluent::*`
 //! fluent::dismiss_circle_color()
 //! icons::fluent::dismiss_circle_color()
 //! crate::icons::fluent::dismiss_circle_color()
 //! ```
+//!
+//! ## Feature flags
+//!
+//! Use **exclusion** features to omit entire variant families:
+//!
+//! | Feature | Excludes |
+//! |---|---|
+//! | `no-filled` | `*Filled.svg` |
+//! | `no-color` | `*Color.svg` |
+//! | `no-regular` | `*Regular.svg` |
+//! | `no-light` | `*Light.svg` |
+//!
+//! Use **inclusion** features to keep *only* one variant family:
+//!
+//! | Feature | Keeps only |
+//! |---|---|
+//! | `only-filled` | `*Filled.svg` |
+//! | `only-color` | `*Color.svg` |
+//! | `only-regular` | `*Regular.svg` |
+//! | `only-light` | `*Light.svg` |
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -71,7 +101,13 @@ use quote::{format_ident, quote};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use syn::{parse_macro_input, visit_mut::VisitMut, Error, LitStr, Result};
+use syn::{
+  parse::{Parse, ParseStream},
+  parse_macro_input,
+  punctuated::Punctuated,
+  visit_mut::VisitMut,
+  Error, LitInt, LitStr, Result, Token,
+};
 
 /// Absolute path to the `icons/` directory inside this proc-macro crate.
 ///
@@ -79,6 +115,44 @@ use syn::{parse_macro_input, visit_mut::VisitMut, Error, LitStr, Result};
 /// baked into the proc-macro binary and is always correct regardless of which crate
 /// invokes the macros.
 const ICONS_DIR: &str = env!("FLUENTUI_ICONS_DIR");
+
+// ── helpers: feature-aware filename filtering ─────────────────────────────────
+
+/// Returns `true` if the icon file should be **included** based on the active
+/// Cargo features.  Both exclusion (`no-*`) and inclusion (`only-*`) features are
+/// evaluated here so that every place that filters icons uses identical logic.
+fn icon_included(filename: &str) -> bool {
+  // ── positive-filter: `only-*` features ───────────────────────────────────
+  // If any `only-*` feature is active, a file must match at least one of them.
+  let has_only =
+    cfg!(any(feature = "only-filled", feature = "only-color", feature = "only-regular", feature = "only-light"));
+
+  if has_only {
+    let keep = (cfg!(feature = "only-filled") && filename.ends_with("Filled.svg"))
+      || (cfg!(feature = "only-color") && filename.ends_with("Color.svg"))
+      || (cfg!(feature = "only-regular") && filename.ends_with("Regular.svg"))
+      || (cfg!(feature = "only-light") && filename.ends_with("Light.svg"));
+    if !keep {
+      return false;
+    }
+  }
+
+  // ── negative-filter: `no-*` features ─────────────────────────────────────
+  if cfg!(feature = "no-filled") && filename.ends_with("Filled.svg") {
+    return false;
+  }
+  if cfg!(feature = "no-color") && filename.ends_with("Color.svg") {
+    return false;
+  }
+  if cfg!(feature = "no-regular") && filename.ends_with("Regular.svg") {
+    return false;
+  }
+  if cfg!(feature = "no-light") && filename.ends_with("Light.svg") {
+    return false;
+  }
+
+  true
+}
 
 // ── declare!() ───────────────────────────────────────────────────────────────
 
@@ -89,34 +163,34 @@ const ICONS_DIR: &str = env!("FLUENTUI_ICONS_DIR");
 ///
 /// ```ignore
 /// // src/icons/fluent.rs
-/// fluentui_icons::declare!();
+/// iced_fluent_icons::declare!();
 /// ```
 ///
 /// Each stub:
 ///
 /// - is a plain `pub fn` — no structs, no `impl` blocks, no traits, no `include_bytes!`
-/// - carries a rustdoc image (`![Name](file:///…)`) so VS Code and JetBrains IDEs
-///   render the icon in hover and signature-help popups
+/// - carries a rustdoc image so VS Code and JetBrains IDEs render the icon on hover
 /// - has the return type `::iced::widget::Svg<'static>` for correct type inference
 /// - has a `panic!` body — it is never executed because [`inventory`] rewrites every
 ///   call site at compile time
 ///
-/// Generated stub shape (one per SVG file):
+/// Active [feature flags] are respected: icons belonging to excluded variant families
+/// are not emitted.
+///
+/// Generated stub shape (one per included SVG file):
 ///
 /// ```ignore
-/// /// ![DismissCircleColor](file:///…/DismissCircleColor.svg)
+/// /// ![DismissCircleColor](https://raw.githubusercontent.com/…/DismissCircleColor.svg)
 /// ///
-/// /// `DismissCircleColor.svg` — annotate the caller with `#[fluentui_icons::inventory]`.
+/// /// `DismissCircleColor.svg` — annotate the calling function with
+/// /// `#[iced_fluent_icons::inventory]`.
 /// pub fn dismiss_circle_color() -> ::iced::widget::Svg<'static> {
 ///     panic!("icon stub …")
 /// }
 /// ```
 #[proc_macro]
 pub fn declare(input: TokenStream) -> TokenStream {
-  // No arguments today; the `_` suppresses the unused-variable warning and
-  // the parameter stays for forward-compatible extension later.
   let _ = input;
-
   match expand_declare() {
     Ok(ts) => ts.into(),
     Err(e) => e.to_compile_error().into(),
@@ -128,30 +202,9 @@ fn expand_declare() -> Result<proc_macro2::TokenStream> {
 
   let stubs = files
     .iter()
-    .filter_map(|_path| {
-      #[cfg(any(feature = "no-regular", feature = "no-light", feature = "no-color", feature = "no-filled", ))]
-      let filename = _path.file_name()?.to_str()?;
-      #[cfg(feature = "no-filled")]
-      if filename.ends_with("Filled.svg") {
-        return None;
-      }
-      #[cfg(feature = "no-color")]
-      if filename.ends_with("Color.svg") {
-        return None;
-      }
-      #[cfg(feature = "no-light")]
-      if filename.ends_with("Light.svg") {
-        return None;
-      }
-      #[cfg(feature = "no-regular")]
-      if filename.ends_with("Regular.svg") {
-        return None;
-      }
-      if cfg!(feature = "default") {
-        return None;
-      } else {
-        None
-      }
+    .filter_map(|path| {
+      let filename = path.file_name()?.to_str()?;
+      if icon_included(filename) { Some(path) } else { None }
     })
     .map(|path| generate_stub(path))
     .collect::<Result<Vec<_>>>()?;
@@ -161,13 +214,6 @@ fn expand_declare() -> Result<proc_macro2::TokenStream> {
 
 /// Emit the hollow stub for one SVG file.
 fn generate_stub(path: &Path) -> Result<proc_macro2::TokenStream> {
-  let file_name = path
-    .file_name()
-    .and_then(|n| n.to_str())
-    .and_then(|n| n.strip_suffix(path.extension()?.to_str()?))
-    .and_then(|n| n.strip_suffix('.'))
-    .ok_or_else(|| Error::new(Span::call_site(), "icon path has a non-UTF-8 filename"))?;
-
   let stem = path
     .file_stem()
     .and_then(|n| n.to_str())
@@ -175,19 +221,20 @@ fn generate_stub(path: &Path) -> Result<proc_macro2::TokenStream> {
 
   validate_stem(stem)?;
 
-  // Use forward slashes everywhere — works on all platforms for file:// URLs
-  // and for include_bytes! on Windows too.
   let filename_ext = path.file_name().and_then(std::ffi::OsStr::to_str).unwrap();
-  let preview_link =
-    format!("https://raw.githubusercontent.com/rootfebri/iced-fluent-icons/refs/heads/master/icons/{filename_ext}");
+  let preview_link = format!(
+    "https://raw.githubusercontent.com/rootfebri/iced-fluent-icons/refs/heads/master/icons/{filename_ext}"
+  );
 
   let fn_ident = format_ident!("{}", to_snake_case(stem));
 
-  // These three strings become the rustdoc that powers IDE hover / signature-help.
   let image_doc = format!("![{stem}]({preview_link})");
-  let detail_doc = format!("`{file_name} ({filename_ext})` — annotate the calling function with `#[fluentui_icons::inventory]`.");
-  let panic_msg =
-    format!("icon stub `{stem}` — the calling function must be annotated with `#[fluentui_icons::inventory]`");
+  let detail_doc = format!(
+    "`{filename_ext}` — annotate the calling function with `#[iced_fluent_icons::inventory]`."
+  );
+  let panic_msg = format!(
+    "icon stub `{stem}` — the calling function must be annotated with `#[iced_fluent_icons::inventory]`"
+  );
 
   Ok(quote! {
     #[doc = #image_doc]
@@ -201,17 +248,88 @@ fn generate_stub(path: &Path) -> Result<proc_macro2::TokenStream> {
 
 // ── #[inventory] ─────────────────────────────────────────────────────────────
 
+/// Parsed arguments for `#[inventory(…)]`.
+struct InventoryArgs {
+  /// Pixel width for every emitted icon widget.
+  width: u32,
+  /// Pixel height for every emitted icon widget.
+  height: u32,
+}
+
+impl Default for InventoryArgs {
+  fn default() -> Self {
+    Self { width: 24, height: 24 }
+  }
+}
+
+/// Accepted syntax variants:
+///
+/// ```ignore
+/// #[inventory]                              // → 24 × 24
+/// #[inventory(size = 32)]                   // → 32 × 32
+/// #[inventory(width = 20)]                  // → 20 × 24
+/// #[inventory(height = 48)]                 // → 24 × 48
+/// #[inventory(width = 20, height = 48)]     // → 20 × 48
+/// #[inventory(size = 32, height = 48)]      // size is the fallback; height overrides it
+/// ```
+impl Parse for InventoryArgs {
+  fn parse(input: ParseStream) -> Result<Self> {
+    if input.is_empty() {
+      return Ok(Self::default());
+    }
+
+    // key = value pairs separated by commas
+    let pairs = Punctuated::<syn::MetaNameValue, Token![,]>::parse_terminated(input)?;
+
+    let mut size: Option<u32> = None;
+    let mut width: Option<u32> = None;
+    let mut height: Option<u32> = None;
+
+    for pair in &pairs {
+      let key = pair
+        .path
+        .get_ident()
+        .ok_or_else(|| Error::new_spanned(&pair.path, "expected `size`, `width`, or `height`"))?
+        .to_string();
+
+      let val: u32 = match &pair.value {
+        syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(n), .. }) => n.base10_parse()?,
+        other => {
+          return Err(Error::new_spanned(other, "expected an integer literal"));
+        }
+      };
+
+      match key.as_str() {
+        "size" => size = Some(val),
+        "width" => width = Some(val),
+        "height" => height = Some(val),
+        _ => return Err(Error::new_spanned(&pair.path, "expected `size`, `width`, or `height`")),
+      }
+    }
+
+    let fallback = size.unwrap_or(24);
+    Ok(Self { width: width.unwrap_or(fallback), height: height.unwrap_or(fallback) })
+  }
+}
+
 /// Replace calls to icon stub functions with inline SVG-loading code.
 ///
 /// Apply this attribute to any `fn`, `impl` block, or `mod` that calls icon stubs
 /// generated by [`declare!`]:
 ///
 /// ```ignore
-/// #[fluentui_icons::inventory]
+/// #[iced_fluent_icons::inventory]
 /// fn view(&self) -> iced::Element<'_, Message> {
 ///     let close = icons::fluent::dismiss_circle_color();
 ///     // …every qualifying call is rewritten at compile time…
 /// }
+/// ```
+///
+/// ## Custom icon size
+///
+/// ```ignore
+/// #[iced_fluent_icons::inventory(size = 32)]              // 32 × 32
+/// #[iced_fluent_icons::inventory(width = 20, height = 24)]
 /// ```
 ///
 /// ## What gets rewritten
@@ -231,15 +349,12 @@ fn generate_stub(path: &Path) -> Result<proc_macro2::TokenStream> {
 ///
 /// ## Scope
 ///
-/// Can be applied to:
-///
 /// - a single `fn` — rewrites that function's body
 /// - an `impl` block — rewrites all method bodies within it
 /// - a `mod` — rewrites all functions inside the module (including nested items)
 #[proc_macro_attribute]
 pub fn inventory(attr: TokenStream, item: TokenStream) -> TokenStream {
-  // No arguments today.
-  let _ = attr;
+  let args = parse_macro_input!(attr as InventoryArgs);
 
   let icon_map = match build_icon_map() {
     Ok(m) => m,
@@ -248,7 +363,7 @@ pub fn inventory(attr: TokenStream, item: TokenStream) -> TokenStream {
 
   let mut ast = parse_macro_input!(item as syn::Item);
 
-  IconCallReplacer { icon_map }.visit_item_mut(&mut ast);
+  IconCallReplacer { icon_map, width: args.width, height: args.height }.visit_item_mut(&mut ast);
 
   quote! { #ast }.into()
 }
@@ -258,14 +373,14 @@ pub fn inventory(attr: TokenStream, item: TokenStream) -> TokenStream {
 struct IconCallReplacer {
   /// `"dismiss_circle_color"` → `/abs/path/to/DismissCircleColor.svg`
   icon_map: HashMap<String, PathBuf>,
+  width: u32,
+  height: u32,
 }
 
 impl VisitMut for IconCallReplacer {
   fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
     // Bottom-up: recurse into sub-expressions first so that icon calls nested
     // inside other expressions (closures, if-let arms, etc.) are all replaced.
-    // For `Expr::Macro` nodes this dispatches into our `visit_macro_mut` above,
-    // which in turn recurses into the macro body.
     syn::visit_mut::visit_expr_mut(self, expr);
 
     // Only care about `some::path::fn_name()` — a path call with zero arguments.
@@ -285,14 +400,14 @@ impl VisitMut for IconCallReplacer {
     if let Some(path) = svg_path {
       // Absolute, forward-slash path → safe as an include_bytes! literal on all platforms.
       let path_lit = LitStr::new(&path.to_string_lossy().replace('\\', "/"), Span::call_site());
+      let w = LitInt::new(&self.width.to_string(), Span::call_site());
+      let h = LitInt::new(&self.height.to_string(), Span::call_site());
 
-      // Replace the call expression with the actual SVG-loading block.
-      // The block evaluates to `iced::widget::Svg<'static>`, matching the stub's return type.
       *expr = syn::parse_quote! {
         {
           let bytes: &'static [u8] = include_bytes!(#path_lit);
           let handle = ::iced::widget::svg::Handle::from_memory(bytes);
-          ::iced::widget::svg::<'static, ::iced::Theme>(handle).width(24).height(24)
+          ::iced::widget::svg::<'static, ::iced::Theme>(handle).width(#w).height(#h)
         }
       };
     }
@@ -301,26 +416,20 @@ impl VisitMut for IconCallReplacer {
   /// Parse the macro body as comma-separated expressions and visit each one.
   ///
   /// Without this override, `syn::visit_mut` treats macro bodies as opaque
-  /// `TokenStream`s — icon calls inside `w::column![]`, `w::row![]`,
-  /// `w::stack![]`, etc. would never be reached by `visit_expr_mut`.
+  /// `TokenStream`s — icon calls inside `column![]`, `row![]`, `stack![]`, etc.
+  /// would never be reached by `visit_expr_mut`.
   ///
-  /// If the body cannot be parsed as `Expr, Expr, …` (e.g. `matches!`,
-  /// `if_chain!`, or any macro with non-expression syntax) parsing fails
-  /// silently and the tokens are left untouched.
+  /// If the body cannot be parsed as `Expr, Expr, …` parsing fails silently and
+  /// the tokens are left untouched.
   fn visit_macro_mut(&mut self, mac: &mut syn::Macro) {
     if let Ok(mut args) =
-      mac.parse_body_with(syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated)
+      mac.parse_body_with(Punctuated::<syn::Expr, Token![,]>::parse_terminated)
     {
       for arg in args.iter_mut() {
         self.visit_expr_mut(arg);
       }
-      // Reserialize — idempotent if nothing changed.
       mac.tokens = quote! { #args };
     }
-    // If parsing failed, leave mac.tokens untouched.
-    // We intentionally skip `syn::visit_mut::visit_macro_mut` because it only
-    // visits the macro *path* (e.g. `w::column`), never the body — so there is
-    // nothing useful left to delegate to.
   }
 }
 
@@ -361,11 +470,22 @@ fn collect_svg_files(dir: &Path) -> Result<Vec<PathBuf>> {
 /// Build the lookup table used by [`IconCallReplacer`].
 ///
 /// Returns `snake_case_name → absolute SVG path`.
+/// Respects the same feature-flag filtering as [`expand_declare`] so that
+/// `#[inventory]` never tries to embed an icon that was excluded by a feature flag.
 fn build_icon_map() -> Result<HashMap<String, PathBuf>> {
   let files = collect_svg_files(Path::new(ICONS_DIR))?;
   let mut map = HashMap::with_capacity(files.len());
 
   for path in files {
+    let filename = match path.file_name().and_then(|n| n.to_str()) {
+      Some(f) => f,
+      None => continue,
+    };
+
+    if !icon_included(filename) {
+      continue;
+    }
+
     if let Some(stem) = path.file_stem().and_then(|n| n.to_str()) {
       map.insert(to_snake_case(stem), path);
     }
@@ -428,7 +548,6 @@ fn to_snake_case(s: &str) -> String {
     let ch = chars[i];
 
     if ch == '_' {
-      // Preserve underscores but never emit consecutive ones.
       if !out.ends_with('_') {
         out.push('_');
       }
@@ -436,11 +555,9 @@ fn to_snake_case(s: &str) -> String {
     }
 
     if ch.is_ascii_uppercase() {
-      // Rule 2: uppercase after lowercase or digit.
       let prev_lower_or_digit =
         i > 0 && chars[i - 1] != '_' && (chars[i - 1].is_ascii_lowercase() || chars[i - 1].is_ascii_digit());
 
-      // Rule 3: uppercase after uppercase when next is lowercase (acronym boundary).
       let prev_upper_next_lower =
         i > 0 && chars[i - 1].is_ascii_uppercase() && chars.get(i + 1).is_some_and(|c| c.is_ascii_lowercase());
 
@@ -494,7 +611,6 @@ mod tests {
 
   #[test]
   fn digits_in_name() {
-    // digit counts as a lowercase boundary trigger
     case!("Add24Filled"                   => "add24_filled");
     case!("Alert20Regular"                => "alert20_regular");
   }
@@ -506,7 +622,18 @@ mod tests {
 
   #[test]
   fn consecutive_underscores_collapsed() {
-    // underscores in input should not produce runs of underscores
     case!("Some_Name"                     => "some_name");
+  }
+
+  // ── icon_included tests ───────────────────────────────────────────────────
+  // These always pass because no `only-*` / `no-*` features are active in
+  // `cargo test`.  They mainly verify the function compiles and is callable.
+  #[test]
+  fn icon_included_all_variants_allowed_by_default() {
+    use super::icon_included;
+    assert!(icon_included("AddFilled.svg"));
+    assert!(icon_included("AddRegular.svg"));
+    assert!(icon_included("AddColor.svg"));
+    assert!(icon_included("AddLight.svg"));
   }
 }

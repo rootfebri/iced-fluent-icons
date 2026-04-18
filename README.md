@@ -72,21 +72,54 @@ crate::icons::fluent::dismiss_circle_color()
 
 ---
 
-## Icon variants
+## Custom icon size
 
-Icons ship in up to four variants. You can opt out of unwanted variants with Cargo features to keep compilation fast:
+By default every icon is rendered at 24 × 24 px. Override this per annotated item with `size`, `width`, and/or `height`:
 
-| Feature      | Excludes             |
-|--------------|----------------------|
-| `no-filled`  | `*Filled.svg` icons  |
-| `no-color`   | `*Color.svg` icons   |
+```rust,ignore
+#[iced_fluent_icons::inventory(size = 32)]              // 32 × 32
+#[iced_fluent_icons::inventory(width = 20, height = 48)] // 20 × 48
+#[iced_fluent_icons::inventory(width = 20)]              // 20 × 24
+```
+
+---
+
+## Icon variants & feature flags
+
+Icons ship in up to four variants. Use **exclusion** features to omit families you don't need, or **inclusion** features to keep only the families you do need.
+
+### Exclusion features
+
+| Feature | Excludes |
+|---|---|
+| `no-filled` | `*Filled.svg` icons |
+| `no-color` | `*Color.svg` icons |
 | `no-regular` | `*Regular.svg` icons |
-| `no-light`   | `*Light.svg` icons   |
+| `no-light` | `*Light.svg` icons |
 
 ```toml
 [dependencies]
 iced-fluent-icons = { version = "1.0", features = ["no-light", "no-color"] }
 ```
+
+### Inclusion features
+
+Multiple `only-*` features may be combined.
+
+| Feature | Keeps only |
+|---|---|
+| `only-filled` | `*Filled.svg` icons |
+| `only-color` | `*Color.svg` icons |
+| `only-regular` | `*Regular.svg` icons |
+| `only-light` | `*Light.svg` icons |
+
+```toml
+# Keep only Regular and Filled — exclude Color and Light entirely.
+[dependencies]
+iced-fluent-icons = { version = "1.0", features = ["only-regular", "only-filled"] }
+```
+
+Both the `declare!` stub generator and the `#[inventory]` rewriter respect the same feature flags, so excluded icons are never embedded at all.
 
 ---
 

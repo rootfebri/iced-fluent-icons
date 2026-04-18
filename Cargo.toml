@@ -22,12 +22,22 @@ include = [
 proc-macro = true
 
 [features]
-# Enable all features
+# All variants are included by default.
 default = []
+
+# Exclusion features — omit an entire icon variant family.
 no-filled = []
 no-color = []
 no-regular = []
 no-light = []
+
+# Inclusion features — keep *only* the named variant family (or families).
+# Multiple `only-*` features may be combined; e.g. `only-filled` + `only-regular`
+# will include both Filled and Regular icons.
+only-filled = []
+only-color = []
+only-regular = []
+only-light = []
 
 [dependencies.proc-macro2]
 version = "1.0"
