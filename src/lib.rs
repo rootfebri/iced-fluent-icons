@@ -71,7 +71,7 @@ use quote::{format_ident, quote};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use syn::{Error, LitStr, Result, parse_macro_input, visit_mut::VisitMut};
+use syn::{parse_macro_input, visit_mut::VisitMut, Error, LitStr, Result};
 
 /// Absolute path to the `icons/` directory inside this proc-macro crate.
 ///
@@ -128,6 +128,31 @@ fn expand_declare() -> Result<proc_macro2::TokenStream> {
 
   let stubs = files
     .iter()
+    .filter_map(|_path| {
+      #[cfg(any(feature = "no-regular", feature = "no-light", feature = "no-color", feature = "no-filled", ))]
+      let filename = _path.file_name()?.to_str()?;
+      #[cfg(feature = "no-filled")]
+      if filename.ends_with("Filled.svg") {
+        return None;
+      }
+      #[cfg(feature = "no-color")]
+      if filename.ends_with("Color.svg") {
+        return None;
+      }
+      #[cfg(feature = "no-light")]
+      if filename.ends_with("Light.svg") {
+        return None;
+      }
+      #[cfg(feature = "no-regular")]
+      if filename.ends_with("Regular.svg") {
+        return None;
+      }
+      if cfg!(feature = "default") {
+        return None;
+      } else {
+        None
+      }
+    })
     .map(|path| generate_stub(path))
     .collect::<Result<Vec<_>>>()?;
 
@@ -152,13 +177,15 @@ fn generate_stub(path: &Path) -> Result<proc_macro2::TokenStream> {
 
   // Use forward slashes everywhere — works on all platforms for file:// URLs
   // and for include_bytes! on Windows too.
-  let svg_path = path.to_string_lossy().replace('\\', "/");
+  let filename_ext = path.file_name().and_then(std::ffi::OsStr::to_str).unwrap();
+  let preview_link =
+    format!("https://raw.githubusercontent.com/rootfebri/iced-fluent-icons/refs/heads/master/icons/{filename_ext}");
 
   let fn_ident = format_ident!("{}", to_snake_case(stem));
 
   // These three strings become the rustdoc that powers IDE hover / signature-help.
-  let image_doc = format!("![{stem}](file://{svg_path})");
-  let detail_doc = format!("`{file_name}` — annotate the calling function with `#[fluentui_icons::inventory]`.");
+  let image_doc = format!("![{stem}]({preview_link})");
+  let detail_doc = format!("`{file_name} ({filename_ext})` — annotate the calling function with `#[fluentui_icons::inventory]`.");
   let panic_msg =
     format!("icon stub `{stem}` — the calling function must be annotated with `#[fluentui_icons::inventory]`");
 

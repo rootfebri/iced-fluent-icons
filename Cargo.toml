@@ -12,6 +12,14 @@ include = ["icons"]
 [lib]
 proc-macro = true
 
+[features]
+# Enable all features
+default = []
+no-filled = []
+no-color = []
+no-regular = []
+no-light = []
+
 [dependencies.proc-macro2]
 version = "1.0"
 
