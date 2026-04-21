@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iced Fluent Icons</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f5f3;
+    --bg3: #efefed;
+    --text: #1a1a18;
+    --text2: #5f5e5a;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --accent: #534AB7;
+    --accent-bg: #EEEDFE;
+    --accent-text: #3C3489;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg2: #252523;
+      --bg3: #2e2e2c;
+      --text: #f0efe8;
+      --text2: #b4b2a9;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.18);
+      --accent: #AFA9EC;
+      --accent-bg: #26215C;
+      --accent-text: #CECBF6;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 2rem 2rem 1rem;
+    border-bottom: 0.5px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .count-badge {
+    font-size: 12px;
+    color: var(--accent-text);
+    background: var(--accent-bg);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    max-width: 360px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text2);
+    pointer-events: none;
+  }
+
+  input[type="search"] {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px 0 34px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="search"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(83,74,183,0.15);
+  }
+
+  .filter-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    height: 32px;
+    padding: 0 14px;
+    border: 0.5px solid var(--border2);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .filter-btn:hover {
+    background: var(--bg2);
+    color: var(--text);
+  }
+
+  .filter-btn.active {
+    background: var(--accent-bg);
+    color: var(--accent-text);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+
+  main {
+    padding: 1.5rem 2rem 3rem;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 5rem 2rem;
+    color: var(--text2);
+    font-size: 14px;
+    display: none;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+  }
+
+  .icon-card {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    background: var(--bg);
+    transition: all 0.12s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .icon-card:hover {
+    border-color: var(--border2);
+    background: var(--bg2);
+    transform: translateY(-1px);
+  }
+
+  .icon-card:active {
+    transform: scale(0.97);
+  }
+
+  .icon-card.copied::after {
+    content: 'Copied!';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--accent-bg);
+    color: var(--accent-text);
+    border-radius: var(--radius-lg);
+    animation: fadeout 1s ease forwards;
+  }
+
+  @keyframes fadeout {
+    0% { opacity: 1; }
+    60% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  .icon-preview {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-preview img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+  }
+
+  .icon-preview .no-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--bg3);
+    border-radius: 4px;
+  }
+
+  .icon-name {
+    font-size: 11px;
+    color: var(--text2);
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.3;
+    max-width: 100%;
+  }
+
+  .type-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+
+  .type-filled  { background: #E6F1FB; color: #185FA5; }
+  .type-light   { background: #FAEEDA; color: #854F0B; }
+  .type-regular { background: #EAF3DE; color: #3B6D11; }
+  .type-color   { background: #FBEAF0; color: #993556; }
+
+  @media (prefers-color-scheme: dark) {
+    .type-filled  { background: #0C447C; color: #B5D4F4; }
+    .type-light   { background: #633806; color: #FAC775; }
+    .type-regular { background: #27500A; color: #C0DD97; }
+    .type-color   { background: #72243E; color: #F4C0D1; }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 4rem;
+    color: var(--text2);
+    font-size: 14px;
+  }
+
+  .error-box {
+    background: #FCEBEB;
+    color: #A32D2D;
+    border: 0.5px solid #F09595;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    font-size: 13px;
+    margin-top: 1rem;
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .error-box { background: #501313; color: #F7C1C1; border-color: #791F1F; }
+  }
+
+  @media (max-width: 600px) {
+    header, main { padding-left: 1rem; padding-right: 1rem; }
+    .icon-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>Iced Fluent Icons</h1>
+    <span class="count-badge" id="count-badge">loading…</span>
+  </div>
+  <div class="controls">
+    <div class="search-wrap">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <input type="search" id="search" placeholder="Search icons…" autocomplete="off">
+    </div>
+    <div class="filter-group" id="filter-group">
+      <button class="filter-btn active" data-type="all">All</button>
+      <button class="filter-btn" data-type="Filled">Filled</button>
+      <button class="filter-btn" data-type="Light">Light</button>
+      <button class="filter-btn" data-type="Regular">Regular</button>
+      <button class="filter-btn" data-type="Color">Color</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="loading" id="loading">Fetching icons from repo…</div>
+  <div class="error-box" id="error-box"></div>
+  <div class="empty-state" id="empty-state">No icons found matching your search.</div>
+  <div id="grid-container"></div>
+</main>
+
+<script>
+const REPO = 'rootfebri/iced-fluent-icons';
+const ICONS_PATH = 'icons';
+const TYPES = ['Filled', 'Light', 'Regular', 'Color'];
+
+let allIcons = [];
+let activeType = 'all';
+let searchQuery = '';
+
+async function fetchAllIcons() {
+  const url = `https://api.github.com/repos/${REPO}/git/trees/HEAD?recursive=1`;
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } });
+  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+  const data = await res.json();
+
+  const svgFiles = data.tree
+    .filter(f => f.type === 'blob' && f.path.startsWith(ICONS_PATH + '/') && f.path.endsWith('.svg'));
+
+  return svgFiles.map(f => {
+    const filename = f.path.slice(ICONS_PATH.length + 1).replace('.svg', '');
+    let iconType = null;
+    let iconName = filename;
+    for (const t of TYPES) {
+      if (filename.endsWith(t)) {
+        iconType = t;
+        iconName = filename.slice(0, -t.length);
+        break;
+      }
+    }
+    return { path: f.path, filename, iconName, iconType };
+  });
+}
+
+function getRawUrl(path) {
+  return `https://raw.githubusercontent.com/${REPO}/HEAD/${path}`;
+}
+
+function groupByName(icons) {
+  const map = {};
+  for (const icon of icons) {
+    if (!map[icon.iconName]) map[icon.iconName] = [];
+    map[icon.iconName].push(icon);
+  }
+  return map;
+}
+
+function render() {
+  const container = document.getElementById('grid-container');
+  const empty = document.getElementById('empty-state');
+  container.innerHTML = '';
+
+  let filtered = allIcons;
+
+  if (activeType !== 'all') {
+    filtered = filtered.filter(i => i.iconType === activeType);
+  }
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(i => i.iconName.toLowerCase().includes(q));
+  }
+
+  const badge = document.getElementById('count-badge');
+  badge.textContent = `${filtered.length} icon${filtered.length !== 1 ? 's' : ''}`;
+
+  if (filtered.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const grid = document.createElement('div');
+  grid.className = 'icon-grid';
+
+  for (const icon of filtered) {
+    const card = document.createElement('div');
+    card.className = 'icon-card';
+    card.title = `Click to copy: ${icon.filename}`;
+
+    const preview = document.createElement('div');
+    preview.className = 'icon-preview';
+    const img = document.createElement('img');
+    img.src = getRawUrl(icon.path);
+    img.alt = icon.iconName;
+    img.loading = 'lazy';
+    img.onerror = () => { img.replaceWith(Object.assign(document.createElement('div'), { className: 'no-icon' })); };
+    preview.appendChild(img);
+
+    const name = document.createElement('div');
+    name.className = 'icon-name';
+    name.textContent = icon.iconName;
+
+    const pill = document.createElement('span');
+    pill.className = `type-pill type-${(icon.iconType || 'unknown').toLowerCase()}`;
+    pill.textContent = icon.iconType || '?';
+
+    card.appendChild(preview);
+    card.appendChild(name);
+    card.appendChild(pill);
+
+    card.addEventListener('click', () => {
+      navigator.clipboard.writeText(icon.filename).catch(() => {});
+      card.classList.add('copied');
+      setTimeout(() => card.classList.remove('copied'), 1000);
+    });
+
+    grid.appendChild(card);
+  }
+
+  container.appendChild(grid);
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  render();
+});
+
+document.getElementById('filter-group').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeType = btn.dataset.type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+(async () => {
+  const loading = document.getElementById('loading');
+  const errBox = document.getElementById('error-box');
+  try {
+    allIcons = await fetchAllIcons();
+    loading.style.display = 'none';
+    render();
+  } catch (err) {
+    loading.style.display = 'none';
+    errBox.style.display = 'block';
+    errBox.textContent = `Failed to load icons: ${err.message}`;
+  }
+})();
+</script>
+
+</body>
+</html>
