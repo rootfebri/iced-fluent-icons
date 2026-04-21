@@ -223,22 +223,32 @@
   }
 
   .icon-preview {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 8px;
+  }
+
+  .icon-preview.non-color {
+    background: #444441;
+    padding: 6px;
+  }
+
+  .icon-preview.non-color img {
+    filter: invert(1);
   }
 
   .icon-preview img {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
   }
 
   .icon-preview .no-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     background: var(--bg3);
     border-radius: 4px;
   }
@@ -411,7 +421,7 @@ function render() {
     card.title = `Click to copy: ${icon.filename}`;
 
     const preview = document.createElement('div');
-    preview.className = 'icon-preview';
+    preview.className = 'icon-preview' + (icon.iconType !== 'Color' ? ' non-color' : '');
     const img = document.createElement('img');
     img.src = getRawUrl(icon.path);
     img.alt = icon.iconName;
