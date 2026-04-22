@@ -35,7 +35,7 @@ fluentui_icons::declare!();
 
 This generates one `pub fn` per SVG file. Each stub:
 
-- carries a **rustdoc image** so VS Code and JetBrains IDEs show a preview on hover / signature-help
+- carries a **rustdoc image** most modern IDEs show a preview on hover / signature-help
 - has the correct return type `::iced::widget::Svg<'static>` for type inference and completion
 - has a `panic!` body — it is **never executed** because `#[inventory]` rewrites every call site
 
